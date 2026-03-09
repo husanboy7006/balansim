@@ -1,6 +1,9 @@
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, accounts, transactions, categories, debts, goals, stats
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="BALANSIM API",
@@ -8,26 +11,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS
-origins = [
-    "https://balansim.vercel.app",
-    "https://balansim.vercel.app/",
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:3000",
-]
-
-import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+# CORS - Allow ALL origins for now to debug
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Import routers
+from app.routers import auth, accounts, transactions, categories, debts, goals, stats
 
 # Routers
 app.include_router(auth.router)
