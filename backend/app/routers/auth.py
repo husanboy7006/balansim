@@ -59,31 +59,39 @@ async def create_user_session(db: AsyncSession, user: User, request: Request) ->
 
 @router.post("/register", response_model=TokenResponse)
 async def register(user_data: UserCreate, request: Request, db: AsyncSession = Depends(get_db)):
-    # Rate Limiting
-    ip = get_client_ip(request)
-    attempts = await RedisCache.increment_failed_attempts(f"reg_{ip}", 3600)
-    if attempts > 10:
-        raise HTTPException(status_code=429, detail="Juda ko'p urinish, keyinroq sinab ko'ring.")
+    try:
+        # Rate Limiting
+        ip = get_client_ip(request)
+        attempts = await RedisCache.increment_failed_attempts(f"reg_{ip}", 3600)
+        if attempts > 10:
+            raise HTTPException(status_code=429, detail="Juda ko'p urinish, keyinroq sinab ko'ring.")
 
-    # Check if exists
-    if user_data.phone:
-        query = select(User).where(User.phone == user_data.phone)
-        result = await db.execute(query)
-        if result.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Bu telefon raqami allaqachon ro'yxatdan o'tgan")
-    
-    # Create
-    user = User(
-        name=user_data.name,
-        phone=user_data.phone,
-        telegram_id=user_data.telegram_id,
-        currency=user_data.currency
-    )
-    db.add(user)
-    await db.commit()
-    await db.refresh(user)
-    
-    return await create_user_session(db, user, request)
+        # Check if exists
+        if user_data.phone:
+            query = select(User).where(User.phone == user_data.phone)
+            result = await db.execute(query)
+            if result.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="Bu telefon raqami allaqachon ro'yxatdan o'tgan")
+        
+        # Create
+        user = User(
+            name=user_data.name,
+            phone=user_data.phone,
+            telegram_id=user_data.telegram_id,
+            currency=user_data.currency
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        
+        return await create_user_session(db, user, request)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_detail = traceback.format_exc()
+        print(f"REGISTER ERROR: {error_detail}")
+        raise HTTPException(status_code=500, detail=f"Server xatoligi: {str(e)}")
 
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: PhoneOTPVerify, request: Request, db: AsyncSession = Depends(get_db)):
