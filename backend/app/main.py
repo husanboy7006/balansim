@@ -11,9 +11,15 @@ app = FastAPI(
 # CORS
 origins = [
     "https://balansim.vercel.app",
+    "https://balansim.vercel.app/",
     "http://localhost:5173",
+    "http://localhost:5174",
     "http://localhost:3000",
 ]
+
+import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app.add_middleware(
     CORSMiddleware,

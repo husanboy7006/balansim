@@ -8,11 +8,18 @@ redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_respo
 class RedisCache:
     @staticmethod
     async def set_otp(phone: str, otp: str, expire_seconds: int = 120):
-        await redis_client.set(f"otp:{phone}", otp, ex=expire_seconds)
+        try:
+            await redis_client.set(f"otp:{phone}", otp, ex=expire_seconds)
+        except Exception as e:
+            print(f"Redis error in set_otp: {e}")
 
     @staticmethod
     async def get_otp(phone: str) -> str:
-        return await redis_client.get(f"otp:{phone}")
+        try:
+            return await redis_client.get(f"otp:{phone}")
+        except Exception as e:
+            print(f"Redis error in get_otp: {e}")
+            return None
 
     @staticmethod
     async def delete_otp(phone: str):
@@ -25,11 +32,15 @@ class RedisCache:
 
     @staticmethod
     async def increment_failed_attempts(identifier: str, expire_seconds: int = 900) -> int:
-        key = f"attempts:{identifier}"
-        val = await redis_client.incr(key)
-        if val == 1:
-            await redis_client.expire(key, expire_seconds) # 15 min block initially
-        return val
+        try:
+            key = f"attempts:{identifier}"
+            val = await redis_client.incr(key)
+            if val == 1:
+                await redis_client.expire(key, expire_seconds)
+            return val
+        except Exception as e:
+            print(f"Redis error in increment_failed_attempts: {e}")
+            return 0 # Fallback: assume 0 attempts if redis fails
 
     @staticmethod
     async def reset_failed_attempts(identifier: str):
