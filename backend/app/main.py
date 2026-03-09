@@ -37,5 +37,6 @@ async def root():
     return {"message": "BALANSIM API ishlayapti!", "version": "1.0.0"}
 
 @app.get("/api/health")
+@app.head("/api/health")
 async def health():
     return {"status": "ok"}
