@@ -5,12 +5,26 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Enum types
-CREATE TYPE user_role AS ENUM ('owner', 'admin', 'member');
-CREATE TYPE account_type AS ENUM ('cash', 'card', 'deposit');
-CREATE TYPE transaction_type AS ENUM ('income', 'expense', 'transfer');
-CREATE TYPE category_type AS ENUM ('income', 'expense');
-CREATE TYPE debt_type AS ENUM ('lent', 'borrowed');
-CREATE TYPE debt_status AS ENUM ('active', 'paid');
+DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('owner', 'admin', 'member');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_type') THEN
+        CREATE TYPE account_type AS ENUM ('cash', 'card', 'deposit');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'transaction_type') THEN
+        CREATE TYPE transaction_type AS ENUM ('income', 'expense', 'transfer');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'category_type') THEN
+        CREATE TYPE category_type AS ENUM ('income', 'expense');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'debt_type') THEN
+        CREATE TYPE debt_type AS ENUM ('lent', 'borrowed');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'debt_status') THEN
+        CREATE TYPE debt_status AS ENUM ('active', 'paid');
+    END IF;
+END $$;
 
 -- Families
 CREATE TABLE IF NOT EXISTS families (

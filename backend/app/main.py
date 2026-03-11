@@ -46,3 +46,28 @@ async def root():
 @app.head("/api/health")
 async def health():
     return {"status": "ok"}
+
+@app.get("/api/health/init-db")
+async def run_init_db():
+    from app.database import engine
+    import os
+    from sqlalchemy import text
+    
+    sql_file = "/app/backend/init.sql"
+    if not os.path.exists(sql_file):
+        sql_file = "backend/init.sql"
+    if not os.path.exists(sql_file):
+        sql_file = "init.sql"
+        
+    try:
+        with open(sql_file, "r", encoding="utf-8") as f:
+            sql_commands = f.read()
+        
+        async with engine.begin() as conn:
+            # We execute as one big block since asyncpg handles it often
+            await conn.execute(text(sql_commands))
+            
+        return {"status": "success", "message": "Database initialized successfully"}
+    except Exception as e:
+        import traceback
+        return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
