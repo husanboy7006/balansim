@@ -22,19 +22,24 @@ async def get_accounts(user: User = Depends(get_current_user), db: AsyncSession 
 @router.post("/", response_model=AccountResponse, status_code=201)
 async def create_account(data: AccountCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Create a new account/wallet"""
-    account = Account(
-        user_id=user.id,
-        name=data.name,
-        type=data.type,
-        currency=data.currency,
-        balance=data.balance,
-        icon=data.icon,
-        color=data.color,
-    )
-    db.add(account)
-    await db.commit()
-    await db.refresh(account)
-    return AccountResponse.model_validate(account)
+    try:
+        account = Account(
+            user_id=user.id,
+            name=data.name,
+            type=data.type,
+            currency=data.currency,
+            balance=data.balance,
+            icon=data.icon,
+            color=data.color,
+        )
+        db.add(account)
+        await db.commit()
+        await db.refresh(account)
+        return AccountResponse.model_validate(account)
+    except Exception as e:
+        import traceback
+        print(f"ACCOUNT CREATE ERROR: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Server xatoligi: {str(e)}")
 
 @router.put("/{account_id}", response_model=AccountResponse)
 async def update_account(account_id: UUID, data: AccountUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

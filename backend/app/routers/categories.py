@@ -44,18 +44,23 @@ async def get_categories(
 @router.post("/", response_model=CategoryResponse, status_code=201)
 async def create_category(data: CategoryCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Create a custom category"""
-    category = Category(
-        name=data.name,
-        icon=data.icon,
-        color=data.color,
-        type=data.type,
-        parent_id=data.parent_id,
-        user_id=user.id,
-    )
-    db.add(category)
-    await db.commit()
-    await db.refresh(category)
-    return CategoryResponse.model_validate(category)
+    try:
+        category = Category(
+            name=data.name,
+            icon=data.icon,
+            color=data.color,
+            type=data.type,
+            parent_id=data.parent_id,
+            user_id=user.id,
+        )
+        db.add(category)
+        await db.commit()
+        await db.refresh(category)
+        return CategoryResponse.model_validate(category)
+    except Exception as e:
+        import traceback
+        print(f"CATEGORY CREATE ERROR: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Server xatoligi: {str(e)}")
 
 @router.put("/{category_id}", response_model=CategoryResponse)
 async def update_category(category_id: UUID, data: CategoryUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

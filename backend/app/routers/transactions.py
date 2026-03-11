@@ -79,42 +79,49 @@ async def get_transactions(
 @router.post("/", response_model=TransactionResponse, status_code=201)
 async def create_transaction(data: TransactionCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Create a new transaction and update account balances"""
-    # Verify account belongs to user
-    result = await db.execute(select(Account).where(Account.id == data.account_id, Account.user_id == user.id))
-    account = result.scalar_one_or_none()
-    if not account:
-        raise HTTPException(status_code=404, detail="Hisob topilmadi")
-    
-    # Handle balance updates
-    if data.type == "expense":
-        account.balance -= data.amount
-    elif data.type == "income":
-        account.balance += data.amount
-    elif data.type == "transfer":
-        if not data.to_account_id:
-            raise HTTPException(status_code=400, detail="O'tkazma uchun manzil hisob kerak")
-        to_result = await db.execute(select(Account).where(Account.id == data.to_account_id, Account.user_id == user.id))
-        to_account = to_result.scalar_one_or_none()
-        if not to_account:
-            raise HTTPException(status_code=404, detail="Manzil hisob topilmadi")
-        account.balance -= data.amount
-        to_account.balance += data.amount
-    
-    transaction = Transaction(
-        user_id=user.id,
-        account_id=data.account_id,
-        type=data.type,
-        amount=data.amount,
-        category_id=data.category_id,
-        to_account_id=data.to_account_id,
-        description=data.description,
-        date=data.date or datetime.utcnow(),
-        receipt_url=data.receipt_url,
-    )
-    db.add(transaction)
-    await db.commit()
-    await db.refresh(transaction)
-    return TransactionResponse.model_validate(transaction)
+    try:
+        # Verify account belongs to user
+        result = await db.execute(select(Account).where(Account.id == data.account_id, Account.user_id == user.id))
+        account = result.scalar_one_or_none()
+        if not account:
+            raise HTTPException(status_code=404, detail="Hisob topilmadi")
+        
+        # Handle balance updates
+        if data.type == "expense":
+            account.balance -= data.amount
+        elif data.type == "income":
+            account.balance += data.amount
+        elif data.type == "transfer":
+            if not data.to_account_id:
+                raise HTTPException(status_code=400, detail="O'tkazma uchun manzil hisob kerak")
+            to_result = await db.execute(select(Account).where(Account.id == data.to_account_id, Account.user_id == user.id))
+            to_account = to_result.scalar_one_or_none()
+            if not to_account:
+                raise HTTPException(status_code=404, detail="Manzil hisob topilmadi")
+            account.balance -= data.amount
+            to_account.balance += data.amount
+        
+        transaction = Transaction(
+            user_id=user.id,
+            account_id=data.account_id,
+            type=data.type,
+            amount=data.amount,
+            category_id=data.category_id,
+            to_account_id=data.to_account_id,
+            description=data.description,
+            date=data.date or datetime.utcnow(),
+            receipt_url=data.receipt_url,
+        )
+        db.add(transaction)
+        await db.commit()
+        await db.refresh(transaction)
+        return TransactionResponse.model_validate(transaction)
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"TRANSACTION CREATE ERROR: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Server xatoligi: {str(e)}")
 
 @router.put("/{transaction_id}", response_model=TransactionResponse)
 async def update_transaction(transaction_id: UUID, data: TransactionUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
