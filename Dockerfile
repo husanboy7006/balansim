@@ -21,5 +21,5 @@ WORKDIR /app/backend
 # Expose port
 EXPOSE 8000
 
-# Start database initialization and then the application
-CMD ["sh", "-c", "python init_db.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# Start database initialization (non-blocking) and then the application
+CMD ["sh", "-c", "python init_db.py ; uvicorn app.main:app --host 0.0.0.0 --port 8000"]
