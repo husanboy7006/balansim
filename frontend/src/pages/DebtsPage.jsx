@@ -11,7 +11,8 @@ export default function DebtsPage() {
     const [showPayModal, setShowPayModal] = useState(null);
     const [payAmount, setPayAmount] = useState('');
     const [filter, setFilter] = useState('');
-    const [form, setForm] = useState({ contact_name: '', type: 'borrowed', amount: '', due_date: '', notes: '' });
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
 
     const load = () => {
         const params = {};
@@ -22,18 +23,34 @@ export default function DebtsPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        await debtsAPI.create({ ...form, amount: parseFloat(String(form.amount).replace(/\s/g, '')) });
-        setShowModal(false);
-        setForm({ contact_name: '', type: 'borrowed', amount: '', due_date: '', notes: '' });
-        load();
+        setSaving(true);
+        setError('');
+        try {
+            await debtsAPI.create({ ...form, amount: parseFloat(String(form.amount).replace(/\s/g, '')) });
+            setShowModal(false);
+            setForm({ contact_name: '', type: 'borrowed', amount: '', due_date: '', notes: '' });
+            load();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Saqlashda xatolik yuz berdi');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handlePay = async (e) => {
         e.preventDefault();
-        await debtsAPI.pay(showPayModal, parseFloat(String(payAmount).replace(/\s/g, '')));
-        setShowPayModal(null);
-        setPayAmount('');
-        load();
+        setSaving(true);
+        setError('');
+        try {
+            await debtsAPI.pay(showPayModal, parseFloat(String(payAmount).replace(/\s/g, '')));
+            setShowPayModal(null);
+            setPayAmount('');
+            load();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'To\'lovda xatolik yuz berdi');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const totalLent = debts.filter(d => d.type === 'lent' && d.status === 'active').reduce((s, d) => s + parseFloat(d.remaining), 0);
@@ -130,6 +147,7 @@ export default function DebtsPage() {
                             <button onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit}>
+                            {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
                             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
                                 <button type="button" className={`chip ${form.type === 'borrowed' ? 'active' : ''}`} style={{ flex: 1 }}
                                     onClick={() => setForm({ ...form, type: 'borrowed' })}>Men oldim</button>
@@ -155,7 +173,9 @@ export default function DebtsPage() {
                                 <label>Izoh</label>
                                 <input className="input" value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Ixtiyoriy" />
                             </div>
-                            <button className="btn btn-primary btn-block" type="submit">Saqlash</button>
+                            <button className="btn btn-primary btn-block" type="submit" disabled={saving}>
+                                {saving ? <div className="spinner sm"></div> : 'Saqlash'}
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -168,6 +188,7 @@ export default function DebtsPage() {
                         <div className="modal-handle" />
                         <div className="modal-title">To'lov qilish</div>
                         <form onSubmit={handlePay}>
+                            {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
                             <div className="input-group">
                                 <label>To'lov summasi</label>
                                 <input className="input" type="text" inputMode="numeric" value={payAmount} onChange={e => {
@@ -176,7 +197,9 @@ export default function DebtsPage() {
                                 }} required placeholder="0"
                                     style={{ fontSize: '1.3rem', fontWeight: 700, textAlign: 'center' }} />
                             </div>
-                            <button className="btn btn-primary btn-block" type="submit">To'lash</button>
+                            <button className="btn btn-primary btn-block" type="submit" disabled={saving}>
+                                {saving ? <div className="spinner sm"></div> : 'To\'lash'}
+                            </button>
                         </form>
                     </div>
                 </div>

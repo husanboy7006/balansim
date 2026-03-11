@@ -10,25 +10,42 @@ export default function GoalsPage() {
     const [showModal, setShowModal] = useState(false);
     const [showFundModal, setShowFundModal] = useState(null);
     const [fundAmount, setFundAmount] = useState('');
-    const [form, setForm] = useState({ name: '', target_amount: '', deadline: '', icon: 'target', color: '#10B981' });
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
 
     const load = () => { goalsAPI.getAll().then(r => setGoals(r.data)).catch(() => setGoals([])).finally(() => setLoading(false)); };
     useEffect(load, []);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        await goalsAPI.create({ ...form, target_amount: parseFloat(String(form.target_amount).replace(/\s/g, '')) });
-        setShowModal(false);
-        setForm({ name: '', target_amount: '', deadline: '', icon: 'target', color: '#10B981' });
-        load();
+        setSaving(true);
+        setError('');
+        try {
+            await goalsAPI.create({ ...form, target_amount: parseFloat(String(form.target_amount).replace(/\s/g, '')) });
+            setShowModal(false);
+            setForm({ name: '', target_amount: '', deadline: '', icon: 'target', color: '#10B981' });
+            load();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Maqsad yaratishda xatolik yuz berdi');
+        } finally {
+            setSaving(false);
+        }
     };
 
     const handleFund = async (e) => {
         e.preventDefault();
-        await goalsAPI.contribute(showFundModal, parseFloat(String(fundAmount).replace(/\s/g, '')));
-        setShowFundModal(null);
-        setFundAmount('');
-        load();
+        setSaving(true);
+        setError('');
+        try {
+            await goalsAPI.contribute(showFundModal, parseFloat(String(fundAmount).replace(/\s/g, '')));
+            setShowFundModal(null);
+            setFundAmount('');
+            load();
+        } catch (err) {
+            setError(err.response?.data?.detail || 'Pul qo\'shishda xatolik yuz berdi');
+        } finally {
+            setSaving(false);
+        }
     };
 
     if (loading) return <div className="loading"><div className="spinner"></div></div>;
@@ -103,6 +120,7 @@ export default function GoalsPage() {
                             <button onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit}>
+                            {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
                             <div className="input-group">
                                 <label>Maqsad nomi</label>
                                 <input className="input" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required placeholder="Masalan: Avtomobil" />
@@ -122,7 +140,9 @@ export default function GoalsPage() {
                                 <label>Rang</label>
                                 <input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} style={{ width: '100%', height: 44, border: 'none', borderRadius: 8, cursor: 'pointer' }} />
                             </div>
-                            <button className="btn btn-primary btn-block" type="submit">Yaratish</button>
+                            <button className="btn btn-primary btn-block" type="submit" disabled={saving}>
+                                {saving ? <div className="spinner sm"></div> : 'Yaratish'}
+                            </button>
                         </form>
                     </div>
                 </div>
@@ -135,6 +155,7 @@ export default function GoalsPage() {
                         <div className="modal-handle" />
                         <div className="modal-title">Pul qo'shish</div>
                         <form onSubmit={handleFund}>
+                            {error && <div className="error-message" style={{ marginBottom: 16 }}>{error}</div>}
                             <div className="input-group">
                                 <label>Summa</label>
                                 <input className="input" type="text" inputMode="numeric" value={fundAmount} onChange={e => {
@@ -143,7 +164,9 @@ export default function GoalsPage() {
                                 }} required placeholder="0"
                                     style={{ fontSize: '1.3rem', fontWeight: 700, textAlign: 'center' }} />
                             </div>
-                            <button className="btn btn-primary btn-block" type="submit">Qo'shish</button>
+                            <button className="btn btn-primary btn-block" type="submit" disabled={saving}>
+                                {saving ? <div className="spinner sm"></div> : 'Qo\'shish'}
+                            </button>
                         </form>
                     </div>
                 </div>
