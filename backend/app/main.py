@@ -49,46 +49,49 @@ async def health():
 
 @app.get("/api/health/init-db")
 async def run_init_db():
-    from sqlalchemy.ext.asyncio import create_async_engine
+    import asyncpg
     import os
     import re
-    from sqlalchemy import text
     from app.config import settings
     
     database_url = settings.DATABASE_URL
-    if database_url.startswith("postgresql://"):
-        database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    # asyncpg needs postgresql:// but we often have postgresql+asyncpg:// in our env for sqlalchemy
+    if database_url.startswith("postgresql+asyncpg://"):
+        database_url = database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
         
-    # Create a dedicated engine for init with NO statement caching
-    temp_engine = create_async_engine(
-        database_url,
-        connect_args={
-            "prepared_statement_cache_size": 0,
-            "statement_cache_size": 0
-        }
-    )
-    
     sql_file = "/app/backend/init.sql"
     if not os.path.exists(sql_file):
         sql_file = "backend/init.sql"
     if not os.path.exists(sql_file):
         sql_file = "init.sql"
         
+    conn = None
     try:
+        # Connect directly with asyncpg
+        conn = await asyncpg.connect(database_url, statement_cache_size=0)
+        
         with open(sql_file, "r", encoding="utf-8") as f:
             sql_content = f.read()
             
         sql_content = re.sub(r'--.*?\n', '\n', sql_content)
         statements = [s.strip() for s in re.split(r';(?=(?:[^\$]*\$\$[^\$]*\$\$)*[^\$]*$)', sql_content) if s.strip()]
         
-        async with temp_engine.begin() as conn:
-            for statement in statements:
-                await conn.execute(text(statement))
-        
-        await temp_engine.dispose()
-        return {"status": "success", "message": f"Database initialized successfully with {len(statements)} statements"}
+        results = []
+        for statement in statements:
+            try:
+                await conn.execute(statement)
+                results.append(f"SUCCESS: {statement[:30]}...")
+            except Exception as e:
+                results.append(f"FAILED: {statement[:30]}... ERROR: {str(e)}")
+            
+        return {
+            "status": "partial_success" if "FAILED" in "".join(results) else "success",
+            "message": f"Executed {len(statements)} statements",
+            "details": results
+        }
     except Exception as e:
         import traceback
-        if 'temp_engine' in locals():
-            await temp_engine.dispose()
         return {"status": "error", "message": str(e), "traceback": traceback.format_exc()}
+    finally:
+        if conn:
+            await conn.close()
