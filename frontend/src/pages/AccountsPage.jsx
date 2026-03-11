@@ -19,18 +19,30 @@ export default function AccountsPage() {
     };
     useEffect(load, []);
 
+    const [loadingAction, setLoadingAction] = useState(false);
+    const [actionError, setActionError] = useState('');
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        const data = { ...form, balance: parseFloat(String(form.balance).replace(/\s/g, '')) || 0 };
-        if (editing) {
-            await accountsAPI.update(editing, { name: data.name, type: data.type, color: data.color });
-        } else {
-            await accountsAPI.create(data);
+        setLoadingAction(true);
+        setActionError('');
+        try {
+            const data = { ...form, balance: parseFloat(String(form.balance).replace(/\s/g, '')) || 0 };
+            if (editing) {
+                await accountsAPI.update(editing, { name: data.name, type: data.type, color: data.color });
+            } else {
+                await accountsAPI.create(data);
+            }
+            setShowModal(false);
+            setEditing(null);
+            setForm({ name: '', type: 'cash', balance: '', color: '#4F46E5' });
+            load();
+        } catch (err) {
+            console.error('Account action error:', err);
+            setActionError(err.response?.data?.detail || 'Xatolik yuz berdi. Iltimos qaytadan urinib ko\'ring.');
+        } finally {
+            setLoadingAction(false);
         }
-        setShowModal(false);
-        setEditing(null);
-        setForm({ name: '', type: 'cash', balance: '', color: '#4F46E5' });
-        load();
     };
 
     const handleDelete = async (id) => {
@@ -119,7 +131,10 @@ export default function AccountsPage() {
                                 <label>Rang</label>
                                 <input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} style={{ width: '100%', height: 44, border: 'none', borderRadius: 8, cursor: 'pointer' }} />
                             </div>
-                            <button className="btn btn-primary btn-block" type="submit">{editing ? 'Saqlash' : 'Yaratish'}</button>
+                            {actionError && <p style={{ color: 'var(--red)', fontSize: '0.85rem', marginBottom: 12 }}>{actionError}</p>}
+                            <button className="btn btn-primary btn-block" type="submit" disabled={loadingAction}>
+                                {loadingAction ? 'Saqlanmoqda...' : (editing ? 'Saqlash' : 'Yaratish')}
+                            </button>
                         </form>
                     </div>
                 </div>
