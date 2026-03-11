@@ -16,7 +16,13 @@ async def init_db():
     if database_url.startswith("postgresql://"):
         database_url = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
-    engine = create_async_engine(database_url)
+    engine = create_async_engine(
+        database_url,
+        connect_args={
+            "prepared_statement_cache_size": 0,
+            "statement_cache_size": 0
+        }
+    )
     
     sql_file = "init.sql"
     if not os.path.exists(sql_file):
