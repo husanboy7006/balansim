@@ -73,7 +73,7 @@ async def register(user_data: UserCreate, request: Request, db: AsyncSession = D
             if result.scalar_one_or_none():
                 raise HTTPException(status_code=400, detail="Bu telefon raqami allaqachon ro'yxatdan o'tgan")
         
-        # Create
+        # Create User
         user = User(
             name=user_data.name,
             phone=user_data.phone,
@@ -83,6 +83,20 @@ async def register(user_data: UserCreate, request: Request, db: AsyncSession = D
         db.add(user)
         await db.commit()
         await db.refresh(user)
+
+        # Create Default Account for the new user
+        from app.models.account import Account
+        default_account = Account(
+            user_id=user.id,
+            name="Asosiy hisob",
+            type="cash",
+            currency=user.currency,
+            balance=0.0,
+            icon="wallet",
+            color="#4F46E5"
+        )
+        db.add(default_account)
+        await db.commit()
         
         return await create_user_session(db, user, request)
     except HTTPException:

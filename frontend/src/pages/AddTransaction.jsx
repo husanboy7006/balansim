@@ -82,9 +82,16 @@ export default function AddTransaction() {
                     {/* Account */}
                     <div className="input-group">
                         <label>{type === 'transfer' ? 'Qaysi hisobdan' : 'Hisob'}</label>
-                        <select className="input" value={form.account_id} onChange={e => setForm({ ...form, account_id: e.target.value })} required>
-                            {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({new Intl.NumberFormat().format(a.balance)})</option>)}
-                        </select>
+                        {accounts.length === 0 ? (
+                            <div style={{ padding: '12px', background: 'var(--red)15', border: '1px dashed var(--red)', borderRadius: 12, textAlign: 'center' }}>
+                                <p style={{ color: 'var(--red)', fontSize: '0.9rem', marginBottom: 8 }}>Hisob topilmadi. Avval hisob yarating!</p>
+                                <button type="button" className="btn btn-secondary btn-sm" onClick={() => navigate('/accounts')}>Hisob qo'shish</button>
+                            </div>
+                        ) : (
+                            <select className="input" value={form.account_id} onChange={e => setForm({ ...form, account_id: e.target.value })} required>
+                                {accounts.map(a => <option key={a.id} value={a.id}>{a.name} ({new Intl.NumberFormat().format(a.balance)})</option>)}
+                            </select>
+                        )}
                     </div>
 
                     {/* To Account (transfer only) */}
