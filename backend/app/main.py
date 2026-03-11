@@ -40,7 +40,7 @@ app.include_router(stats.router)
 
 @app.get("/")
 async def root():
-    return {"message": "BALANSIM API ishlayapti!", "version": "1.0.0"}
+    return {"message": "BALANSIM API ishlayapti!", "version": "1.0.1-init-debug"}
 
 @app.get("/api/health")
 @app.head("/api/health")
