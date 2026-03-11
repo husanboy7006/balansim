@@ -38,6 +38,7 @@ export default function App() {
                 <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
                 <Route path="/add" element={<ProtectedRoute><AddTransaction /></ProtectedRoute>} />
+                <Route path="/edit/:id" element={<ProtectedRoute><AddTransaction /></ProtectedRoute>} />
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             {user && <FAB />}

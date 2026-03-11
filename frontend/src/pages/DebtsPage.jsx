@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { debtsAPI } from '../api';
-import { Plus, X, HandCoins, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, X, HandCoins, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react';
 
 function formatMoney(n) { return new Intl.NumberFormat('uz-UZ').format(n) + " so'm"; }
 
@@ -13,6 +13,8 @@ export default function DebtsPage() {
     const [filter, setFilter] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [form, setForm] = useState({ contact_name: '', type: 'borrowed', amount: '', due_date: '', notes: '' });
+    const [editing, setEditing] = useState(null);
 
     const load = () => {
         const params = {};
@@ -26,14 +28,30 @@ export default function DebtsPage() {
         setSaving(true);
         setError('');
         try {
-            await debtsAPI.create({ ...form, amount: parseFloat(String(form.amount).replace(/\s/g, '')) });
+            const data = { ...form, amount: parseFloat(String(form.amount).replace(/\s/g, '')) };
+            if (editing) {
+                await debtsAPI.update(editing, data);
+            } else {
+                await debtsAPI.create(data);
+            }
             setShowModal(false);
+            setEditing(null);
             setForm({ contact_name: '', type: 'borrowed', amount: '', due_date: '', notes: '' });
             load();
         } catch (err) {
             setError(err.response?.data?.detail || 'Saqlashda xatolik yuz berdi');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm("Ushbu qarzni o'chirasizmi?")) return;
+        try {
+            await debtsAPI.delete(id);
+            load();
+        } catch (err) {
+            alert(err.response?.data?.detail || "O'chirishda xatolik");
         }
     };
 
@@ -80,7 +98,7 @@ export default function DebtsPage() {
             </div>
 
             <div className="section">
-                <button className="btn btn-outline btn-block" onClick={() => setShowModal(true)} id="btn-add-debt">
+                <button className="btn btn-outline btn-block" onClick={() => { setEditing(null); setForm({ contact_name: '', type: 'borrowed', amount: '', due_date: '', notes: '' }); setShowModal(true); }} id="btn-add-debt">
                     <Plus size={18} /> Yangi qarz qo'shish
                 </button>
             </div>
@@ -99,12 +117,20 @@ export default function DebtsPage() {
                         <div key={d.id} className="glass-card record-card">
                             <div className="record-header">
                                 <div className="record-title">{d.contact_name}</div>
-                                <span className="record-badge" style={{
-                                    background: d.status === 'paid' ? 'var(--green-bg)' : d.type === 'lent' ? 'var(--blue-bg)' : 'var(--red-bg)',
-                                    color: d.status === 'paid' ? 'var(--green)' : d.type === 'lent' ? 'var(--blue)' : 'var(--red)',
-                                }}>
-                                    {d.status === 'paid' ? '✓ Uzilgan' : d.type === 'lent' ? 'Men berdim' : 'Men oldim'}
-                                </span>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    <button onClick={() => {
+                                        setEditing(d.id);
+                                        setForm({ contact_name: d.contact_name, type: d.type, amount: String(d.amount), due_date: d.due_date || '', notes: d.notes || '' });
+                                        setShowModal(true);
+                                    }} style={{ color: 'var(--text-muted)', padding: 4 }}><Pencil size={14} /></button>
+                                    <button onClick={() => handleDelete(d.id)} style={{ color: 'var(--red)', padding: 4 }}><Trash2 size={14} /></button>
+                                    <span className="record-badge" style={{
+                                        background: d.status === 'paid' ? 'var(--green-bg)' : d.type === 'lent' ? 'var(--blue-bg)' : 'var(--red-bg)',
+                                        color: d.status === 'paid' ? 'var(--green)' : d.type === 'lent' ? 'var(--blue)' : 'var(--red)',
+                                    }}>
+                                        {d.status === 'paid' ? '✓ Uzilgan' : d.type === 'lent' ? 'Men berdim' : 'Men oldim'}
+                                    </span>
+                                </div>
                             </div>
                             {d.notes && <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '4px 0' }}>{d.notes}</p>}
                             <div className="record-amounts">
@@ -143,7 +169,7 @@ export default function DebtsPage() {
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-handle" />
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <div className="modal-title">Yangi qarz</div>
+                            <div className="modal-title">{editing ? 'Qarzni tahrirlash' : 'Yangi qarz'}</div>
                             <button onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit}>

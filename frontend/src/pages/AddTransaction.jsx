@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { transactionsAPI, accountsAPI, categoriesAPI } from '../api';
 import { ArrowLeft, ArrowDownCircle, ArrowUpCircle, ArrowLeftRight } from 'lucide-react';
 
 export default function AddTransaction() {
     const navigate = useNavigate();
+    const { id } = useParams();
     const [type, setType] = useState('expense');
     const [accounts, setAccounts] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -15,9 +16,26 @@ export default function AddTransaction() {
     useEffect(() => {
         accountsAPI.getAll().then(r => {
             setAccounts(r.data);
-            if (r.data.length > 0) setForm(f => ({ ...f, account_id: r.data[0].id }));
+            if (!id && r.data.length > 0) setForm(f => ({ ...f, account_id: r.data[0].id }));
         });
-    }, []);
+    }, [id]);
+
+    useEffect(() => {
+        if (id) {
+            transactionsAPI.getOne(id).then(r => {
+                const t = r.data;
+                setType(t.type);
+                setForm({
+                    account_id: t.account_id,
+                    amount: String(t.amount),
+                    category_id: t.category_id || '',
+                    to_account_id: t.to_account_id || '',
+                    description: t.description || '',
+                    date: t.date ? new Date(t.date).toISOString().slice(0, 16) : ''
+                });
+            });
+        }
+    }, [id]);
 
     useEffect(() => {
         categoriesAPI.getAll(type === 'transfer' ? null : type).then(r => setCategories(r.data)).catch(() => setCategories([]));
@@ -28,7 +46,7 @@ export default function AddTransaction() {
         setLoading(true);
         setError('');
         try {
-            await transactionsAPI.create({
+            const data = {
                 account_id: form.account_id,
                 type,
                 amount: parseFloat(String(form.amount).replace(/\s/g, '')),
@@ -36,7 +54,12 @@ export default function AddTransaction() {
                 to_account_id: type === 'transfer' ? form.to_account_id : null,
                 description: form.description || null,
                 date: form.date ? new Date(form.date).toISOString() : null,
-            });
+            };
+            if (id) {
+                await transactionsAPI.update(id, data);
+            } else {
+                await transactionsAPI.create(data);
+            }
             navigate(-1);
         } catch (e) {
             setError(e.response?.data?.detail || 'Xatolik yuz berdi');
@@ -48,7 +71,7 @@ export default function AddTransaction() {
         <div>
             <div className="page-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <button onClick={() => navigate(-1)} style={{ color: 'var(--text-secondary)' }}><ArrowLeft size={22} /></button>
-                <h1>Yangi amaliyot</h1>
+                <h1>{id ? 'Tahrirlash' : 'Yangi amaliyot'}</h1>
             </div>
 
             {/* Type Selector */}

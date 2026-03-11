@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { goalsAPI } from '../api';
-import { Plus, X, Target } from 'lucide-react';
+import { Plus, X, Target, Pencil, Trash2 } from 'lucide-react';
 
 function formatMoney(n) { return new Intl.NumberFormat('uz-UZ').format(n) + " so'm"; }
 
@@ -12,6 +12,8 @@ export default function GoalsPage() {
     const [fundAmount, setFundAmount] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [form, setForm] = useState({ name: '', target_amount: '', deadline: '', icon: 'target', color: '#10B981' });
+    const [editing, setEditing] = useState(null);
 
     const load = () => { goalsAPI.getAll().then(r => setGoals(r.data)).catch(() => setGoals([])).finally(() => setLoading(false)); };
     useEffect(load, []);
@@ -21,14 +23,30 @@ export default function GoalsPage() {
         setSaving(true);
         setError('');
         try {
-            await goalsAPI.create({ ...form, target_amount: parseFloat(String(form.target_amount).replace(/\s/g, '')) });
+            const data = { ...form, target_amount: parseFloat(String(form.target_amount).replace(/\s/g, '')) };
+            if (editing) {
+                await goalsAPI.update(editing, data);
+            } else {
+                await goalsAPI.create(data);
+            }
             setShowModal(false);
+            setEditing(null);
             setForm({ name: '', target_amount: '', deadline: '', icon: 'target', color: '#10B981' });
             load();
         } catch (err) {
-            setError(err.response?.data?.detail || 'Maqsad yaratishda xatolik yuz berdi');
+            setError(err.response?.data?.detail || 'Maqsad saqlashda xatolik yuz berdi');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleDelete = async (id) => {
+        if (!confirm("Ushbu maqsadni o'chirasizmi?")) return;
+        try {
+            await goalsAPI.delete(id);
+            load();
+        } catch (err) {
+            alert(err.response?.data?.detail || "O'chirishda xatolik");
         }
     };
 
@@ -58,7 +76,7 @@ export default function GoalsPage() {
             </div>
 
             <div className="section">
-                <button className="btn btn-outline btn-block" onClick={() => setShowModal(true)} id="btn-add-goal">
+                <button className="btn btn-outline btn-block" onClick={() => { setEditing(null); setForm({ name: '', target_amount: '', deadline: '', icon: 'target', color: '#10B981' }); setShowModal(true); }} id="btn-add-goal">
                     <Plus size={18} /> Yangi maqsad yaratish
                 </button>
             </div>
@@ -73,12 +91,20 @@ export default function GoalsPage() {
                                 <div className="record-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     <span style={{ fontSize: '1.2rem' }}>🎯</span> {g.name}
                                 </div>
-                                <span className="record-badge" style={{
-                                    background: g.progress >= 100 ? 'var(--green-bg)' : 'var(--accent-bg)',
-                                    color: g.progress >= 100 ? 'var(--green)' : 'var(--accent)',
-                                }}>
-                                    {g.progress >= 100 ? '✓ Erishildi' : `${g.progress}%`}
-                                </span>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                    <button onClick={() => {
+                                        setEditing(g.id);
+                                        setForm({ name: g.name, target_amount: String(g.target_amount), deadline: g.deadline || '', icon: g.icon, color: g.color });
+                                        setShowModal(true);
+                                    }} style={{ color: 'var(--text-muted)', padding: 4 }}><Pencil size={14} /></button>
+                                    <button onClick={() => handleDelete(g.id)} style={{ color: 'var(--red)', padding: 4 }}><Trash2 size={14} /></button>
+                                    <span className="record-badge" style={{
+                                        background: g.progress >= 100 ? 'var(--green-bg)' : 'var(--accent-bg)',
+                                        color: g.progress >= 100 ? 'var(--green)' : 'var(--accent)',
+                                    }}>
+                                        {g.progress >= 100 ? '✓ Erishildi' : `${g.progress}%`}
+                                    </span>
+                                </div>
                             </div>
                             <div className="record-amounts">
                                 <div>
@@ -116,7 +142,7 @@ export default function GoalsPage() {
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-handle" />
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <div className="modal-title">Yangi maqsad</div>
+                            <div className="modal-title">{editing ? 'Maqsadni tahrirlash' : 'Yangi maqsad'}</div>
                             <button onClick={() => setShowModal(false)}><X size={20} /></button>
                         </div>
                         <form onSubmit={handleSubmit}>

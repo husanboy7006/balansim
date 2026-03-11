@@ -76,6 +76,30 @@ async def get_transactions(
     
     return TransactionListResponse(items=items, total=total, page=page, per_page=per_page)
 
+@router.get("/{transaction_id}", response_model=TransactionResponse)
+async def get_transaction(transaction_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """Get a single transaction"""
+    try:
+        result = await db.execute(select(Transaction).where(Transaction.id == transaction_id, Transaction.user_id == user.id))
+        t = result.scalar_one_or_none()
+        if not t:
+            raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+        
+        item = TransactionResponse.model_validate(t)
+        # Enrich info
+        if t.category_id:
+            cat = (await db.execute(select(Category).where(Category.id == t.category_id))).scalar_one_or_none()
+            if cat:
+                item.category_name = cat.name
+        acc = (await db.execute(select(Account).where(Account.id == t.account_id))).scalar_one_or_none()
+        if acc:
+            item.account_name = acc.name
+        return item
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/", response_model=TransactionResponse, status_code=201)
 async def create_transaction(data: TransactionCreate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Create a new transaction and update account balances"""
@@ -125,41 +149,81 @@ async def create_transaction(data: TransactionCreate, user: User = Depends(get_c
 
 @router.put("/{transaction_id}", response_model=TransactionResponse)
 async def update_transaction(transaction_id: UUID, data: TransactionUpdate, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
-    """Update a transaction"""
-    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id, Transaction.user_id == user.id))
-    transaction = result.scalar_one_or_none()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
-    
-    for field, value in data.model_dump(exclude_unset=True).items():
-        setattr(transaction, field, value)
-    await db.commit()
-    await db.refresh(transaction)
-    return TransactionResponse.model_validate(transaction)
+    """Update a transaction and adjust balances"""
+    try:
+        result = await db.execute(select(Transaction).where(Transaction.id == transaction_id, Transaction.user_id == user.id))
+        transaction = result.scalar_one_or_none()
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+        
+        # 1. Reverse OLD balance changes
+        old_acc = (await db.execute(select(Account).where(Account.id == transaction.account_id))).scalar_one_or_none()
+        if old_acc:
+            if transaction.type == "expense":
+                old_acc.balance += transaction.amount
+            elif transaction.type == "income":
+                old_acc.balance -= transaction.amount
+            elif transaction.type == "transfer":
+                old_acc.balance += transaction.amount
+                if transaction.to_account_id:
+                    to_acc = (await db.execute(select(Account).where(Account.id == transaction.to_account_id))).scalar_one_or_none()
+                    if to_acc: to_acc.balance -= transaction.amount
+        
+        # 2. Update fields
+        update_dict = data.model_dump(exclude_unset=True)
+        for field, value in update_dict.items():
+            setattr(transaction, field, value)
+            
+        # 3. Apply NEW balance changes
+        new_acc = (await db.execute(select(Account).where(Account.id == transaction.account_id))).scalar_one_or_none()
+        if not new_acc: raise HTTPException(status_code=404, detail="Yangi hisob topilmadi")
+        
+        if transaction.type == "expense":
+            new_acc.balance -= transaction.amount
+        elif transaction.type == "income":
+            new_acc.balance += transaction.amount
+        elif transaction.type == "transfer":
+            if not transaction.to_account_id: raise HTTPException(status_code=400, detail="O'tkazma uchun manzil kerak")
+            new_acc.balance -= transaction.amount
+            to_acc = (await db.execute(select(Account).where(Account.id == transaction.to_account_id))).scalar_one_or_none()
+            if to_acc: to_acc.balance += transaction.amount
+            
+        await db.commit()
+        await db.refresh(transaction)
+        return TransactionResponse.model_validate(transaction)
+    except Exception as e:
+        import traceback
+        print(f"TRANSACTION UPDATE ERROR: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/{transaction_id}")
 async def delete_transaction(transaction_id: UUID, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     """Delete a transaction and reverse balance changes"""
-    result = await db.execute(select(Transaction).where(Transaction.id == transaction_id, Transaction.user_id == user.id))
-    transaction = result.scalar_one_or_none()
-    if not transaction:
-        raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
-    
-    # Reverse balance
-    acc_result = await db.execute(select(Account).where(Account.id == transaction.account_id))
-    account = acc_result.scalar_one_or_none()
-    if account:
-        if transaction.type == "expense":
-            account.balance += transaction.amount
-        elif transaction.type == "income":
-            account.balance -= transaction.amount
-        elif transaction.type == "transfer" and transaction.to_account_id:
-            account.balance += transaction.amount
-            to_result = await db.execute(select(Account).where(Account.id == transaction.to_account_id))
-            to_account = to_result.scalar_one_or_none()
-            if to_account:
-                to_account.balance -= transaction.amount
-    
-    await db.delete(transaction)
-    await db.commit()
-    return {"message": "Tranzaksiya o'chirildi"}
+    try:
+        result = await db.execute(select(Transaction).where(Transaction.id == transaction_id, Transaction.user_id == user.id))
+        transaction = result.scalar_one_or_none()
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Tranzaksiya topilmadi")
+        
+        # Reverse balance
+        acc_result = await db.execute(select(Account).where(Account.id == transaction.account_id))
+        account = acc_result.scalar_one_or_none()
+        if account:
+            if transaction.type == "expense":
+                account.balance += transaction.amount
+            elif transaction.type == "income":
+                account.balance -= transaction.amount
+            elif transaction.type == "transfer" and transaction.to_account_id:
+                account.balance += transaction.amount
+                to_result = await db.execute(select(Account).where(Account.id == transaction.to_account_id))
+                to_account = to_result.scalar_one_or_none()
+                if to_account:
+                    to_account.balance -= transaction.amount
+        
+        await db.delete(transaction)
+        await db.commit()
+        return {"message": "Tranzaksiya o'chirildi"}
+    except Exception as e:
+        import traceback
+        print(f"TRANSACTION DELETE ERROR: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))

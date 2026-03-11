@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { transactionsAPI } from '../api';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react';
 
 function formatMoney(n) { return new Intl.NumberFormat('uz-UZ').format(n) + " so'm"; }
 
 export default function TransactionsPage() {
+    const navigate = useNavigate();
     const [transactions, setTransactions] = useState([]);
     const [total, setTotal] = useState(0);
     const [page, setPage] = useState(1);
@@ -22,6 +24,16 @@ export default function TransactionsPage() {
             .finally(() => setLoading(false));
     };
     useEffect(load, [page, filter]);
+
+    const handleDelete = async (id) => {
+        if (!confirm("Ushbu amaliyotni o'chirmoqchimisiz?")) return;
+        try {
+            await transactionsAPI.delete(id);
+            load();
+        } catch (err) {
+            alert(err.response?.data?.detail || "O'chirishda xatolik");
+        }
+    };
 
     const totalPages = Math.ceil(total / perPage);
 
@@ -58,11 +70,17 @@ export default function TransactionsPage() {
                                     <div className="transaction-name">{t.description || t.category_name || (t.type === 'income' ? 'Kirim' : t.type === 'expense' ? 'Chiqim' : "O'tkazma")}</div>
                                     <div className="transaction-category">{t.category_name || ''} {t.account_name ? `• ${t.account_name}` : ''}</div>
                                 </div>
-                                <div>
-                                    <div className={`transaction-amount ${t.type} money`}>
-                                        {t.type === 'expense' ? '-' : t.type === 'income' ? '+' : ''}{formatMoney(t.amount)}
+                                <div style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    <div>
+                                        <div className={`transaction-amount ${t.type} money`} style={{ fontSize: '0.9rem' }}>
+                                            {t.type === 'expense' ? '-' : t.type === 'income' ? '+' : ''}{formatMoney(t.amount)}
+                                        </div>
+                                        <div className="transaction-date">{new Date(t.date).toLocaleDateString('uz-UZ')}</div>
                                     </div>
-                                    <div className="transaction-date">{new Date(t.date).toLocaleDateString('uz-UZ')}</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                        <button onClick={() => navigate(`/edit/${t.id}`)} style={{ color: 'var(--text-muted)' }}><Pencil size={14} /></button>
+                                        <button onClick={() => handleDelete(t.id)} style={{ color: 'var(--red)' }}><Trash2 size={14} /></button>
+                                    </div>
                                 </div>
                             </div>
                         ))}
