@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import re
+
 async def init_db():
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
@@ -28,16 +30,22 @@ async def init_db():
     if not os.path.exists(sql_file):
         # Path adjustment for running from different dirs
         sql_file = os.path.join(os.path.dirname(__file__), "init.sql")
+        if not os.path.exists(sql_file):
+            sql_file = "/app/backend/init.sql"
 
     with open(sql_file, "r", encoding="utf-8") as f:
-        sql_commands = f.read()
+        sql_content = f.read()
+
+    # Remove comments
+    sql_content = re.sub(r'--.*?\n', '\n', sql_content)
+    
+    # Split by semicolon but ignore inside $$ blocks
+    statements = [s.strip() for s in re.split(r';(?=(?:[^\$]*\$\$[^\$]*\$\$)*[^\$]*$)', sql_content) if s.strip()]
 
     async with engine.begin() as conn:
-        # Split by semicolon but be careful with functions/triggers if any
-        # For simplicity, we run the whole block if the driver supports it
-        # asyncpg's engine.begin() and conn.execute(text(...)) can handle multiple statements
-        print("Ma'lumotlar bazasi jadvallari yaratilmoqda...")
-        await conn.execute(text(sql_commands))
+        print(f"Ma'lumotlar bazasi jadvallari yaratilmoqda ({len(statements)} qism)...")
+        for statement in statements:
+            await conn.execute(text(statement))
         print("Muvaffaqiyatli yakunlandi!")
 
 if __name__ == "__main__":
