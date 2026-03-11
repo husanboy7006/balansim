@@ -13,7 +13,7 @@ CREATE TYPE debt_type AS ENUM ('lent', 'borrowed');
 CREATE TYPE debt_status AS ENUM ('active', 'paid');
 
 -- Families
-CREATE TABLE families (
+CREATE TABLE IF NOT EXISTS families (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     invite_code VARCHAR(20) UNIQUE,
@@ -21,7 +21,7 @@ CREATE TABLE families (
 );
 
 -- Users
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     telegram_id BIGINT UNIQUE,
     phone VARCHAR(20) UNIQUE,
@@ -37,11 +37,16 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
--- Add owner_id to families after users table created
-ALTER TABLE families ADD COLUMN owner_id UUID REFERENCES users(id);
+-- Add owner_id to families after users table created (conditional check for column)
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='families' AND column_name='owner_id') THEN
+        ALTER TABLE families ADD COLUMN owner_id UUID REFERENCES users(id);
+    END IF;
+END $$;
 
 -- Sessions (Device Logins)
-CREATE TABLE sessions (
+CREATE TABLE IF NOT EXISTS sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     refresh_token VARCHAR(500) NOT NULL UNIQUE,
@@ -52,7 +57,7 @@ CREATE TABLE sessions (
 );
 
 -- Accounts (Wallets)
-CREATE TABLE accounts (
+CREATE TABLE IF NOT EXISTS accounts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
@@ -67,7 +72,7 @@ CREATE TABLE accounts (
 );
 
 -- Categories
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     icon VARCHAR(50) DEFAULT 'tag',
@@ -80,7 +85,7 @@ CREATE TABLE categories (
 );
 
 -- Transactions
-CREATE TABLE transactions (
+CREATE TABLE IF NOT EXISTS transactions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     account_id UUID NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -95,7 +100,7 @@ CREATE TABLE transactions (
 );
 
 -- Debts
-CREATE TABLE debts (
+CREATE TABLE IF NOT EXISTS debts (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     contact_name VARCHAR(100) NOT NULL,
@@ -112,7 +117,7 @@ CREATE TABLE debts (
 );
 
 -- Goals (Savings)
-CREATE TABLE goals (
+CREATE TABLE IF NOT EXISTS goals (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
